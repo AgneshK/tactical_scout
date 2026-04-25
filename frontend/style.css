@@ -1,5 +1,11 @@
 /* ── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+* { -webkit-tap-highlight-color: transparent; }
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
 
 /* ── Color tokens ───────────────────────────────────────────────── */
 :root {
@@ -129,7 +135,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -275,11 +283,14 @@ header {
   flex: 1;
   padding: 24px 22px 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
   scroll-behavior: smooth;
   min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .chat-window.is-empty {
@@ -611,10 +622,11 @@ input::placeholder { color: var(--text-muted); }
 
 /* ── Tablet (≤ 860px) ───────────────────────────────────────────── */
 @media (max-width: 860px) {
+  body { align-items: center; }
+
   .chat-container {
-    max-width: 100%;
-    margin: 0 16px;
-    height: 92vh;
+    /* max-width limits width; centering handled by body flex */
+    max-width: calc(100% - 32px);   /* 16px breathing room each side — no overflow */
     height: 92dvh;
   }
 }
@@ -623,15 +635,14 @@ input::placeholder { color: var(--text-muted); }
 @media (max-width: 600px) {
   body {
     align-items: stretch;
-    background-image: none;   /* drop dot grid — unnecessary on mobile */
+    background-image: none;
     padding: 0;
   }
 
+  /* JS sets exact height via visualViewport; 100% is the fallback */
   .chat-container {
-    margin: 0;
-    height: 100vh;
-    height: 100dvh;           /* accounts for browser chrome on mobile */
     max-width: 100%;
+    height: 100%;
     border-radius: 0;
     border-left: none;
     border-right: none;
@@ -640,11 +651,8 @@ input::placeholder { color: var(--text-muted); }
   }
 
   /* ── Header ── */
-  header {
-    padding: 10px 14px;
-  }
-
-  .brand-badge { display: none; }   /* too cramped on small screens */
+  header { padding: 10px 14px; }
+  .brand-badge  { display: none; }
   .status-label { display: none; }
 
   /* ── Chat window ── */
@@ -676,9 +684,7 @@ input::placeholder { color: var(--text-muted); }
     margin-bottom: 16px;
   }
 
-  .empty-tags {
-    gap: 5px;
-  }
+  .empty-tags { gap: 5px; }
 
   /* ── Messages ── */
   .message {
@@ -686,23 +692,18 @@ input::placeholder { color: var(--text-muted); }
     font-size: 0.8375rem;
   }
 
-  .bot-msg {
-    padding: 12px 14px;
-  }
+  .bot-msg { padding: 12px 14px; }
 
   .bot-msg p,
-  .bot-msg li {
-    font-size: 0.8375rem;
-  }
+  .bot-msg li { font-size: 0.8375rem; }
 
-  /* ── Suggestions: horizontal scroll instead of wrap ── */
+  /* ── Suggestions: scroll horizontally, no wrap ── */
   .suggestions {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding-bottom: 2px;
-    gap: 6px;
   }
 
   .suggestions::-webkit-scrollbar { display: none; }
@@ -716,7 +717,6 @@ input::placeholder { color: var(--text-muted); }
   /* ── Input ── */
   .input-wrapper {
     padding: 10px 12px;
-    /* push above home-bar on iPhone */
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
     gap: 8px;
   }
@@ -726,9 +726,8 @@ input::placeholder { color: var(--text-muted); }
     padding: 4px 4px 4px 13px;
   }
 
-  input {
-    font-size: 1rem; /* prevents iOS auto-zoom on focus (must be ≥ 16px rendered) */
-  }
+  /* ≥ 16px prevents iOS auto-zoom on input focus */
+  input { font-size: 1rem; }
 
   .input-disclaimer { display: none; }
 }
@@ -736,7 +735,6 @@ input::placeholder { color: var(--text-muted); }
 /* ── Small phones (≤ 380px) ─────────────────────────────────────── */
 @media (max-width: 380px) {
   .brand-text h1 { font-size: 0.9375rem; }
-
   .empty-heading { font-size: 1.25rem; }
 
   .empty-icon {
@@ -747,6 +745,5 @@ input::placeholder { color: var(--text-muted); }
   }
 
   .empty-tag { font-size: 0.625rem; padding: 3px 8px; }
-
-  .message { max-width: 96%; }
+  .message   { max-width: 96%; }
 }

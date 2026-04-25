@@ -91,3 +91,24 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
 });
+
+// Keyboard handling — iOS Safari doesn't shrink the viewport when the
+// keyboard opens, so 100dvh stays the full screen height and the input
+// gets covered. visualViewport.height reflects the visible area, so we
+// resize the container to match, keeping the input always above the keyboard.
+if (window.visualViewport) {
+    const container = document.querySelector('.chat-container');
+
+    const onViewportResize = () => {
+        if (window.innerWidth > 600) return;
+        const vh = window.visualViewport.height;
+        container.style.height = vh + 'px';
+        // Keep latest message visible after keyboard shifts layout
+        requestAnimationFrame(() => {
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        });
+    };
+
+    window.visualViewport.addEventListener('resize', onViewportResize);
+    window.visualViewport.addEventListener('scroll', onViewportResize);
+}
