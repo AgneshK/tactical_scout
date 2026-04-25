@@ -8,6 +8,8 @@ An AI-powered football scouting tool that finds statistically similar players â€
 ![LangGraph](https://img.shields.io/badge/LangGraph-ReAct-8a2be2?style=flat-square)
 ![LLM](https://img.shields.io/badge/LLM-Groq%20llama--3.3--70b-f97316?style=flat-square)
 
+**Live demo:** [tactical-scout-two.vercel.app](https://tactical-scout-two.vercel.app/)
+
 ---
 
 ## What it does
@@ -172,7 +174,14 @@ tactical-scout/
 
 ## Deployment
 
-See the [deployment guide](#) for hosting the backend on Render and the frontend on Netlify with automatic deploys on every push to `main`.
+| Service | URL |
+|---|---|
+| Frontend | [tactical-scout-two.vercel.app](https://tactical-scout-two.vercel.app/) |
+| Backend API | [tactical-scout.onrender.com](https://tactical-scout.onrender.com/) |
+
+The frontend is hosted on Vercel and the backend on Render. Both redeploy automatically on every push to `main`.
+
+> **Note:** The Render free tier spins down after 15 minutes of inactivity. The first request after idle may take 30â€“60 seconds to respond.
 
 ---
 
