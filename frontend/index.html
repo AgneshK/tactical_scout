@@ -2,51 +2,104 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tactical Scout AI</title>
-    <!-- Apply saved theme before CSS renders to prevent flash -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Tactical Scout — AI Football Analysis</title>
     <script>
       const saved = localStorage.getItem('theme');
       const preferred = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', preferred);
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="chat-container">
+
         <header>
-            <div class="header-status"></div>
-            <div class="header-text">
-                <h1>Tactical Scout</h1>
-                <p>AI · PyTorch · LangGraph</p>
+            <div class="header-brand">
+                <div class="brand-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="22" y1="12" x2="18" y2="12"/>
+                        <line x1="6"  y1="12" x2="2"  y2="12"/>
+                        <line x1="12" y1="6"  x2="12" y2="2"/>
+                        <line x1="12" y1="22" x2="12" y2="18"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1>Tactical Scout</h1>
+                    <span class="brand-badge">2024 / 25</span>
+                </div>
             </div>
-            <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
-                <!-- Moon: visible in light mode -->
-                <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-                <!-- Sun: visible in dark mode -->
-                <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="5"/>
-                    <line x1="12" y1="1" x2="12" y2="3"/>
-                    <line x1="12" y1="21" x2="12" y2="23"/>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                    <line x1="1" y1="12" x2="3" y2="12"/>
-                    <line x1="21" y1="12" x2="23" y2="12"/>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-                </svg>
-            </button>
+
+            <div class="header-right">
+                <div class="header-status">
+                    <span class="status-dot"></span>
+                    <span class="status-label">Live</span>
+                </div>
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1"     x2="12" y2="3"/>
+                        <line x1="12" y1="21"    x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1"  y1="12"    x2="3"  y2="12"/>
+                        <line x1="21" y1="12"    x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </div>
         </header>
 
-        <div id="chat-window" class="chat-window"></div>
-
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="Find me a cheaper alternative to Bukayo Saka..." autocomplete="off">
-            <button id="send-btn">Send</button>
+        <div id="chat-window" class="chat-window is-empty">
+            <div class="empty-state" id="empty-state">
+                <div class="empty-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="22" y1="12" x2="18" y2="12"/>
+                        <line x1="6"  y1="12" x2="2"  y2="12"/>
+                        <line x1="12" y1="6"  x2="12" y2="2"/>
+                        <line x1="12" y1="22" x2="12" y2="18"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                </div>
+                <h2 class="empty-heading">Your AI football scout.</h2>
+                <p class="empty-sub">Ask about any outfield player from the 2024/25 season.<br>Get instant tactical clones with live availability intel.</p>
+                <div class="empty-tags">
+                    <span class="empty-tag">PyTorch · Autoencoder</span>
+                    <span class="empty-tag">LangGraph · ReAct</span>
+                    <span class="empty-tag">Live News Search</span>
+                </div>
+            </div>
         </div>
+
+        <div class="input-wrapper">
+            <div class="suggestions" id="suggestions">
+                <button class="suggestion-chip" data-query="Find me a cheaper alternative to Bukayo Saka">Cheaper alternative to Saka?</button>
+                <button class="suggestion-chip" data-query="Who plays like Rodri in the Bundesliga?">Rodri's Bundesliga clone</button>
+                <button class="suggestion-chip" data-query="Find attacking midfielders similar to Martin Ødegaard">Similar players to Ødegaard</button>
+                <button class="suggestion-chip" data-query="Who can replace Vinicius Jr tactically?">Replace Vinicius Jr</button>
+            </div>
+            <div class="input-row">
+                <input type="text" id="user-input" placeholder="Ask about any player…" autocomplete="off" spellcheck="false">
+                <button id="send-btn" aria-label="Send">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="input-disclaimer">Outfield players only · 500+ minutes · FBRef 2024/25</p>
+        </div>
+
     </div>
     <script src="https://cdn.jsdelivr.net/npm/marked@13/marked.min.js"></script>
     <script src="script.js"></script>
