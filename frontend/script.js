@@ -37,15 +37,16 @@ async function sendMessage() {
         });
 
         const data = await response.json();
-        document.getElementById(loadingId).remove();
+        document.getElementById(loadingId)?.remove();
 
         if (data.players && Array.isArray(data.players.clones)) {
             appendCards(data.players);
         }
         appendMessage(data.reply, 'bot-msg');
 
-    } catch {
-        document.getElementById(loadingId).remove();
+    } catch (err) {
+        console.error('sendMessage failed:', err);
+        document.getElementById(loadingId)?.remove();
         appendMessage('Unable to reach the backend. The server may be starting up — please try again in a moment.', 'bot-msg');
     }
 }
