@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk -F',' 'NR==1 || $2 ~ /[Rr]odri/ {print $2 \"  |  \" $4 \"  |  \" $5 \"  |  Min=\" $11}' \"C:\\\\Users\\\\Agnesh Kundu\\\\tactical_scout\\\\data\\\\players_data-2024_2025.csv\")"
+    ]
+  }
+}

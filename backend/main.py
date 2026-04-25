@@ -1,9 +1,10 @@
+import json
 import logging
 import time
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from agent import tactical_agent
 
 log = logging.getLogger(__name__)
@@ -22,6 +23,18 @@ class ChatRequest(BaseModel):
     message: str
 
 
+def _extract_similarity_payload(messages) -> dict | None:
+    """Find the most recent get_similar_players ToolMessage and parse its JSON payload."""
+    for msg in reversed(messages):
+        if isinstance(msg, ToolMessage) and getattr(msg, "name", "") == "get_similar_players":
+            try:
+                data = json.loads(msg.content)
+            except (json.JSONDecodeError, TypeError):
+                return None
+            return data if isinstance(data, dict) and "clones" in data else None
+    return None
+
+
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     t0 = time.perf_counter()
@@ -35,4 +48,7 @@ async def chat_endpoint(request: ChatRequest):
     elapsed_ms = (time.perf_counter() - t0) * 1000
     log.info("elapsed=%.0fms  turns=%d", elapsed_ms, len(response["messages"]))
 
-    return {"reply": response["messages"][-1].content}
+    return {
+        "reply":   response["messages"][-1].content,
+        "players": _extract_similarity_payload(response["messages"]),
+    }
