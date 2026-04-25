@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+pandas
+scikit-learn
+torch
+langgraph
+langchain-core
+langchain-groq
+langchain-google-genai
+duckduckgo-search
+optuna
+python-dotenv
+joblib

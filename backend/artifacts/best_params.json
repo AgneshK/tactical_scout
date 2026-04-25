@@ -1,0 +1,14 @@
+{
+  "latent_dim": 16,
+  "lr": 0.004874816890073748,
+  "hidden_1": 64,
+  "hidden_2": 56,
+  "dropout": 0.008220169936625677,
+  "weight_decay": 5.7342969027573155e-06,
+  "batch_size": 16,
+  "optimizer": "adam",
+  "val_mse": 0.06605218789156746,
+  "trial": 93,
+  "n_features": 231,
+  "n_players": 1782
+}
