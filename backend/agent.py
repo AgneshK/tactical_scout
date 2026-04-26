@@ -304,7 +304,7 @@ def search_player_news(player_name: str) -> str:
     ]
     for i, r in enumerate(raw, 1):
         lines.append(f"  {i}. {r['title']}")
-        lines.append(f"     {r['body']}")
+        lines.append(f"     {r['body']}") 
         if r.get("href"):
             lines.append(f"     Source: {r['href']}")
     return "\n".join(lines)
