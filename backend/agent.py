@@ -318,7 +318,7 @@ llm = ChatGroq(
     max_retries=2,
 )
 
-SYSTEM_PROMPT = SystemMessage(content="""You are an elite AI football tactical scout.
+SYSTEM_PROMPT = SystemMessage(content="""You  are an elite AI football tactical scout.
 
 # MANDATORY WORKFLOW
 You MUST invoke `get_similar_players` BEFORE writing any response about a player.
