@@ -340,7 +340,7 @@ to call the tool.
   If no league is mentioned, omit league_filter.
 - search_player_news(player_name): plain-text injury/transfer news. Use for the TOP pick only.
 
-# POSITION RULE
+# POSITION RULE     
 The similarity tool already locks results to the query player's position. Never override.
 
 # AMBIGUOUS NAMES — CRITICAL
