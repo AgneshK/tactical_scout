@@ -1,4 +1,12 @@
-const BACKEND_URL = "https://tactical-scout.onrender.com"; // local: http://127.0.0.1:8000
+// Talk to a local backend when developing (file:// or localhost), otherwise the
+// deployed instance. Override by setting window.BACKEND_URL before this script loads.
+const BACKEND_URL =
+  window.BACKEND_URL ||
+  (location.protocol === "file:" ||
+  location.hostname === "localhost" ||
+  location.hostname === "127.0.0.1"
+    ? "http://127.0.0.1:8000"
+    : "https://tactical-scout.onrender.com");
 
 const chatWindow = document.getElementById("chat-window");
 const userInput = document.getElementById("user-input");
@@ -98,6 +106,7 @@ async function probeBackend() {
       backendReady = true;
       setStatus("live");
       markBannerReady();
+      loadExplorer();
     } else {
       setStatus("offline");
       showColdBanner({ offline: true });
@@ -123,6 +132,7 @@ async function sendMessage() {
   if (!text) return;
 
   hideWelcome();
+  hideAutocomplete();
   appendMessage(text, "user-msg");
   userInput.value = "";
 
@@ -156,6 +166,7 @@ async function sendMessage() {
     backendReady = true;
     setStatus("live");
     markBannerReady();
+    loadExplorer();
 
     // Render player cards if they exist in the response
     if (data.players && Array.isArray(data.players.clones)) {
@@ -582,7 +593,8 @@ document.querySelectorAll(".featured-chip").forEach((chip) => {
 
 sendBtn.addEventListener("click", sendMessage);
 userInput.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") sendMessage();
+  // Defer to the autocomplete keydown handler when an item is highlighted.
+  if (e.key === "Enter" && (acEl.hidden || acActive < 0)) sendMessage();
 });
 
 // Theme toggle
@@ -595,6 +607,301 @@ document.getElementById("theme-toggle").addEventListener("click", () => {
   localStorage.setItem("theme", next);
 });
 
+/* ════════════════════════════════════════════════════════════════════
+   DATASET EXPLORER  —  sidebar engine stats + live leaderboard
+   ════════════════════════════════════════════════════════════════════ */
+
+let explorerLoaded = false;
+let explorerBusy = false;
+let explorerTries = 0;
+let allPlayers = []; // roster for autocomplete
+
+const leaderState = { metric: "xG", pos: "" };
+
+function scoutPlayer(name) {
+  userInput.value = `Find players similar to ${name}`;
+  closeSidebar();
+  sendMessage();
+}
+
+async function loadExplorer() {
+  if (explorerLoaded || explorerBusy) return;
+  explorerBusy = true;
+  try {
+    const [statsRes, playersRes] = await Promise.all([
+      fetch(BACKEND_URL + "/stats"),
+      fetch(BACKEND_URL + "/players"),
+    ]);
+    if (!statsRes.ok) throw new Error("stats " + statsRes.status);
+    renderEngineStats(await statsRes.json());
+    if (playersRes.ok) allPlayers = (await playersRes.json()).players || [];
+    await loadLeaders();
+    explorerLoaded = true;
+  } catch (err) {
+    console.warn("Explorer load failed:", err);
+    explorerTries++;
+    // A cold instance can take ~50s to boot — keep retrying for a while, then degrade.
+    if (explorerTries < 8) {
+      setTimeout(loadExplorer, 5000);
+    } else {
+      showExplorerUnavailable();
+    }
+  } finally {
+    explorerBusy = false;
+  }
+}
+
+function showExplorerUnavailable() {
+  const tilesEl = document.getElementById("engine-tiles");
+  if (tilesEl) {
+    tilesEl.innerHTML = `<div class="panel-note">Live engine data unavailable. Start the backend (<code>uvicorn main:app</code>) or redeploy it, then reload.</div>`;
+  }
+  const distEl = document.getElementById("dist-positions");
+  if (distEl) distEl.innerHTML = "";
+  const listEl = document.getElementById("leaders-list");
+  if (listEl) listEl.innerHTML = `<li class="leaders-empty">Leaderboard needs the backend running.</li>`;
+}
+
+/* ── Engine stats panel ── */
+
+function renderEngineStats(s) {
+  const fmt = (n) => Number(n).toLocaleString();
+  const tiles = [
+    { val: fmt(s.players), key: "Players" },
+    { val: fmt(s.clubs), key: "Clubs" },
+    { val: (s.leagues || []).length, key: "Leagues" },
+    { val: s.avg_age, key: "Avg age" },
+  ];
+  const tilesEl = document.getElementById("engine-tiles");
+  if (tilesEl) {
+    tilesEl.innerHTML = tiles
+      .map(
+        (t) =>
+          `<div class="tile"><span class="tile-val">${t.val}</span><span class="tile-key">${escapeHtml(t.key)}</span></div>`,
+      )
+      .join("");
+  }
+
+  const pill = document.getElementById("engine-pill");
+  if (pill && s.latent_dim) pill.textContent = `${s.latent_dim}-dim latent`;
+
+  // League distribution mini-bars
+  const distEl = document.getElementById("dist-positions");
+  if (distEl && Array.isArray(s.leagues)) {
+    const max = Math.max(...s.leagues.map((l) => l.count), 1);
+    distEl.innerHTML =
+      `<div class="dist-title">League coverage</div>` +
+      s.leagues
+        .map(
+          (l) => `
+        <div class="dist-row">
+          <span class="dist-label">${escapeHtml(l.name)}</span>
+          <span class="dist-track"><i style="width:${((l.count / max) * 100).toFixed(1)}%"></i></span>
+          <span class="dist-num">${l.count}</span>
+        </div>`,
+        )
+        .join("");
+  }
+
+  // Metric tabs from the dataset's available metrics
+  const tabsEl = document.getElementById("metric-tabs");
+  if (tabsEl && Array.isArray(s.metrics)) {
+    tabsEl.innerHTML = s.metrics
+      .map(
+        (m) =>
+          `<button class="metric-tab${m.key === leaderState.metric ? " is-active" : ""}" data-metric="${escapeHtml(m.key)}" title="${escapeHtml(m.label)}">${escapeHtml(m.key)}</button>`,
+      )
+      .join("");
+    tabsEl.querySelectorAll(".metric-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        leaderState.metric = btn.dataset.metric;
+        tabsEl.querySelectorAll(".metric-tab").forEach((b) => b.classList.toggle("is-active", b === btn));
+        loadLeaders();
+      });
+    });
+  }
+}
+
+/* ── Leaderboard panel ── */
+
+async function loadLeaders() {
+  const listEl = document.getElementById("leaders-list");
+  if (!listEl) return;
+  listEl.classList.add("is-loading");
+  try {
+    const url = `${BACKEND_URL}/leaders?metric=${encodeURIComponent(leaderState.metric)}&limit=8${leaderState.pos ? `&pos=${leaderState.pos}` : ""}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("leaders " + res.status);
+    const data = await res.json();
+    renderLeaders(data);
+  } catch (err) {
+    console.warn("Leaders load failed:", err);
+    listEl.innerHTML = `<li class="leaders-empty">Couldn't load leaders.</li>`;
+  } finally {
+    listEl.classList.remove("is-loading");
+  }
+}
+
+function renderLeaders(data) {
+  const listEl = document.getElementById("leaders-list");
+  if (!listEl) return;
+  const rows = data.leaders || [];
+  if (!rows.length) {
+    listEl.innerHTML = `<li class="leaders-empty">No players for this filter.</li>`;
+    return;
+  }
+  const max = Math.max(...rows.map((r) => Number(r.value) || 0), 1);
+  listEl.innerHTML = rows
+    .map((r) => {
+      const flag = r.flag
+        ? `<img class="flag" src="${escapeHtml(r.flag)}" alt="${escapeHtml(r.nation || "")}" loading="lazy">`
+        : "";
+      const w = ((Number(r.value) / max) * 100).toFixed(1);
+      return `
+      <li class="leader-row" data-name="${escapeHtml(r.name)}" tabindex="0" role="button">
+        <span class="leader-rank">${r.rank}</span>
+        <span class="leader-id">
+          <span class="leader-name">${flag}${escapeHtml(r.name)}</span>
+          <span class="leader-meta">${escapeHtml(r.pos || "")} · ${escapeHtml(r.club || "")}</span>
+        </span>
+        <span class="leader-val">
+          <span class="leader-num">${escapeHtml(String(r.value))}</span>
+          <span class="leader-bar"><i style="width:${w}%"></i></span>
+        </span>
+      </li>`;
+    })
+    .join("");
+
+  listEl.querySelectorAll(".leader-row").forEach((row) => {
+    const go = () => scoutPlayer(row.dataset.name);
+    row.addEventListener("click", go);
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        go();
+      }
+    });
+  });
+}
+
+// Position filter (All / FW / MF / DF)
+document.querySelectorAll("#pos-filter .pos-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    leaderState.pos = btn.dataset.pos;
+    document.querySelectorAll("#pos-filter .pos-btn").forEach((b) => b.classList.toggle("is-active", b === btn));
+    loadLeaders();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   PLAYER AUTOCOMPLETE  (accent-insensitive, keyboard-navigable)
+   ════════════════════════════════════════════════════════════════════ */
+
+const acEl = document.getElementById("autocomplete");
+let acMatches = [];
+let acActive = -1;
+
+// Mirror of the backend's accent folding so "odegaard" matches "Ødegaard".
+const AC_SPECIAL = { ø: "o", ł: "l", đ: "d", ß: "ss", æ: "ae", œ: "oe", ð: "d", þ: "th" };
+function fold(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[øłđßæœðþ]/g, (c) => AC_SPECIAL[c] || c)
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, ""); // strip combining diacritical marks
+}
+
+function renderAutocomplete() {
+  if (!acEl) return;
+  if (!acMatches.length) {
+    acEl.hidden = true;
+    acEl.innerHTML = "";
+    return;
+  }
+  acEl.innerHTML = acMatches
+    .map((p, i) => {
+      const flag = p.flag
+        ? `<img class="flag" src="${escapeHtml(p.flag)}" alt="" loading="lazy">`
+        : "";
+      return `
+      <button class="ac-item${i === acActive ? " is-active" : ""}" data-idx="${i}">
+        <span class="ac-name">${flag}${escapeHtml(p.name)}</span>
+        <span class="ac-meta">${escapeHtml(p.pos || "")}${p.club ? " · " + escapeHtml(p.club) : ""}</span>
+      </button>`;
+    })
+    .join("");
+  acEl.hidden = false;
+
+  acEl.querySelectorAll(".ac-item").forEach((item) => {
+    item.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // keep input focus
+      scoutPlayer(acMatches[Number(item.dataset.idx)].name);
+      hideAutocomplete();
+    });
+  });
+}
+
+function hideAutocomplete() {
+  acMatches = [];
+  acActive = -1;
+  renderAutocomplete();
+}
+
+function updateAutocomplete() {
+  const q = fold(userInput.value.trim());
+  if (q.length < 2 || !allPlayers.length) {
+    hideAutocomplete();
+    return;
+  }
+  // Prefer name-start matches, then any substring.
+  const starts = [];
+  const contains = [];
+  for (const p of allPlayers) {
+    const f = fold(p.name);
+    if (f.startsWith(q) || f.split(" ").some((t) => t.startsWith(q))) starts.push(p);
+    else if (f.includes(q)) contains.push(p);
+    if (starts.length >= 6) break;
+  }
+  acMatches = [...starts, ...contains].slice(0, 6);
+  acActive = -1;
+  renderAutocomplete();
+}
+
+userInput.addEventListener("input", updateAutocomplete);
+userInput.addEventListener("blur", () => setTimeout(hideAutocomplete, 120));
+userInput.addEventListener("keydown", (e) => {
+  if (acEl.hidden || !acMatches.length) return;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    acActive = (acActive + 1) % acMatches.length;
+    renderAutocomplete();
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    acActive = (acActive - 1 + acMatches.length) % acMatches.length;
+    renderAutocomplete();
+  } else if (e.key === "Enter" && acActive >= 0) {
+    e.preventDefault();
+    scoutPlayer(acMatches[acActive].name);
+    hideAutocomplete();
+  } else if (e.key === "Escape") {
+    hideAutocomplete();
+  }
+});
+
+/* ── Sidebar drawer (mobile) ── */
+
+const appEl = document.getElementById("app");
+function openSidebar() { appEl.classList.add("sidebar-open"); }
+function closeSidebar() { appEl.classList.remove("sidebar-open"); }
+
+document.getElementById("menu-btn")?.addEventListener("click", openSidebar);
+document.getElementById("sidebar-close")?.addEventListener("click", closeSidebar);
+document.getElementById("sidebar-backdrop")?.addEventListener("click", closeSidebar);
+
 // Probe the backend on load so the cold-start notice appears before the
 // user's first message rather than after a mysterious 60s wait.
 probeBackend();
+
+// Start loading the sidebar engine data immediately — it self-retries while a
+// cold instance boots, and degrades to a clear message if it never answers.
+loadExplorer();

@@ -11,7 +11,29 @@
       "Bash(python -c \"import dotenv,os; dotenv.load_dotenv\\(\\); print\\('GROQ key set:', bool\\(os.getenv\\('GROQ_API_KEY'\\)\\)\\)\")",
       "Bash(curl -s -X POST http://127.0.0.1:8011/chat -H \"Content-Type: application/json\" -d '{\"message\":\"Find players similar to Odegaard\"}')",
       "Bash(curl -s --max-time 90 -X POST http://127.0.0.1:8011/chat -H \"Content-Type: application/json\" -d '{\"message\":\"Find players similar to Odegaard\"}' -o ts_chat.json -w \"HTTP %{http_code} in %{time_total}s\\\\n\")",
-      "Bash(rm -f ts_chat.json)"
+      "Bash(rm -f ts_chat.json)",
+      "Bash(PYTHONIOENCODING=utf-8 python _inspect.py)",
+      "Bash(curl -s http://127.0.0.1:8012/stats -o ts_stats.json)",
+      "Bash(break)",
+      "Bash(python -c \"import json;d=json.load\\(open\\('ts_stats.json'\\)\\);print\\('players',d['players'],'clubs',d['clubs'],'avg_age',d['avg_age']\\);print\\('leagues',[\\(l['name'],l['count']\\) for l in d['leagues']]\\);print\\('positions',d['positions']\\);print\\('metrics',[m['key'] for m in d['metrics']]\\)\")",
+      "Bash(curl -s \"http://127.0.0.1:8012/leaders?metric=xG&limit=3\")",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\(d['metric_label']\\);[print\\(' ',l['rank'],l['name'],l['club'],l['pos'],l['value']\\) for l in d['leaders']]\")",
+      "Bash(curl -s \"http://127.0.0.1:8012/leaders?metric=Tkl&pos=DF&limit=3\")",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);[print\\(' ',l['rank'],l['name'],l['club'],l['value']\\) for l in d['leaders']]\")",
+      "Bash(curl -s http://127.0.0.1:8012/players)",
+      "Bash(python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('count',d['count']\\);print\\('sample',d['players'][0]\\)\")",
+      "Bash(curl -s http://127.0.0.1:8012/health)",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process -Filter \"Name='\\\\''python.exe'\\\\''\" | Where-Object { $_.CommandLine -like '\\\\''*8012*'\\\\'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }')",
+      "Bash(rm -f _desk.png _mob.png /tmp/ts2.log)",
+      "Bash(python -m py_compile backend/main.py backend/agent.py)",
+      "Bash(curl -s -m 70 -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://tactical-scout.onrender.com/health)",
+      "Bash(curl -s -m 30 -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://tactical-scout.onrender.com/stats)",
+      "Bash(curl -s -m 30 -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://tactical-scout.onrender.com/players)",
+      "Bash(curl -s -m 90 -o /tmp/root.txt -w \"HTTP %{http_code} in %{time_total}s\\\\n\" https://tactical-scout.onrender.com/)",
+      "Bash(head -c 200 /tmp/root.txt)",
+      "Bash(rm -f /tmp/root.txt)",
+      "Bash(curl -s http://127.0.0.1:8000/health -o /dev/null)",
+      "Bash(curl -s http://127.0.0.1:8000/health)"
     ]
   }
 }
