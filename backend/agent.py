@@ -2,6 +2,7 @@ import json
 import logging
 import math
 import time
+import unicodedata
 
 import pandas as pd
 import torch
@@ -23,20 +24,49 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# ── Accent-insensitive name folding ──────────────────────────────────────────────
+
+# FBRef stores names with native diacritics (Vinícius, Ødegaard, Pavlović), but users
+# type plain ASCII (Vinicius, Odegaard, Pavlovic). NFKD decomposition strips combining
+# marks (í→i, ć→c, ñ→n), but a handful of European letters are atomic and need an
+# explicit map — Unicode never decomposes ø, ł, đ, ß, æ, œ, ð, þ.
+_SPECIAL_LETTERS = str.maketrans({
+    "ø": "o", "ł": "l", "đ": "d", "ß": "ss", "æ": "ae",
+    "œ": "oe", "ð": "d", "þ": "th",
+})
+
+# Generational suffixes that shouldn't be treated as a surname during fuzzy matching.
+_NAME_SUFFIXES = {"jr", "jr.", "junior", "sr", "sr.", "senior", "ii", "iii"}
+
+def _strip_accents(s: str) -> str:
+    """Fold a name to lowercase ASCII for accent-insensitive matching."""
+    if not s or not isinstance(s, str):
+        return ""
+    s = s.lower().translate(_SPECIAL_LETTERS)
+    decomposed = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 # ── Artifact loading ───────────────────────────────────────────────────────────
 
 def _load_artifacts():
     player_info = joblib.load("artifacts/player_info.pkl")
     embeddings  = torch.load("artifacts/embeddings.pt", weights_only=True)
-    name_to_idx = {name.lower(): idx for idx, name in enumerate(player_info["Player"].tolist())}
+    names       = player_info["Player"].tolist()
+    name_to_idx = {name.lower(): idx for idx, name in enumerate(names)}
+    # Accent-folded index ('vinicius' → idx of 'Vinícius'). First occurrence wins so
+    # that a folded collision can't silently overwrite an exact-spelling entry.
+    norm_to_idx = {}
+    for idx, name in enumerate(names):
+        norm_to_idx.setdefault(_strip_accents(name), idx)
     log.info("Artifacts loaded — %d players in index", len(name_to_idx))
-    return player_info, embeddings, name_to_idx
+    return player_info, embeddings, name_to_idx, norm_to_idx
 
 try:
-    player_info, embeddings, _name_to_idx = _load_artifacts()
+    player_info, embeddings, _name_to_idx, _norm_to_idx = _load_artifacts()
 except FileNotFoundError:
     log.critical("Artifacts missing — run autoencoder.py first.")
-    player_info = embeddings = _name_to_idx = None
+    player_info = embeddings = _name_to_idx = _norm_to_idx = None
 
 
 # ── Position helpers ───────────────────────────────────────────────────────────
@@ -189,17 +219,30 @@ def get_similar_players(player_name: str, league_filter: str | None = None) -> s
     if _name_to_idx is None:
         return json.dumps({"error": "Player database unavailable — artifacts not loaded."})
 
-    # ── Name resolution: exact > token-exact > token-prefix > substring ───────
-    # Tiered to avoid silently matching "Rodri" → "Rodrigo Bentancur".
-    key = player_name.strip().lower()
-    idx = _name_to_idx.get(key)
+    # ── Name resolution: exact > accent-folded exact > token-exact > prefix > substring
+    # Tiered to avoid silently matching "Rodri" → "Rodrigo Bentancur". All tiers are
+    # accent-insensitive, so "Odegaard"/"Vinicius"/"Pavlovic" resolve to their native
+    # spellings (Ødegaard / Vinícius / Pavlović).
+    key  = player_name.strip().lower()
+    nkey = _strip_accents(player_name)
+    idx  = _name_to_idx.get(key)
 
     if idx is None:
-        last = key.split()[-1]
+        idx = _norm_to_idx.get(nkey)
+        if idx is not None:
+            log.info("Accent-folded match '%s' → '%s'", player_name, player_info.iloc[idx]["Player"])
+
+    if idx is None:
+        # Surname for the substring tier — skip generational suffixes so "Vinicius Jr"
+        # keys off "vinicius", not "jr" (which would mismatch any "... Jr." player).
+        toks = [t for t in nkey.split() if t not in _NAME_SUFFIXES] or nkey.split()
+        last = toks[-1] if toks else nkey
+        # (original lowercase key, accent-folded key) for every indexed name.
+        folded = [(n, _strip_accents(n)) for n in _name_to_idx]
         tiers = [
-            [n for n in _name_to_idx if key in n.split()],                           # exact word token
-            [n for n in _name_to_idx if any(t.startswith(key) for t in n.split())],  # token prefix
-            [n for n in _name_to_idx if last in n],                                  # last-name substring
+            [n for n, nn in folded if nkey in nn.split()],                           # exact word token
+            [n for n, nn in folded if any(t.startswith(nkey) for t in nn.split())],  # token prefix
+            [n for n, nn in folded if last in nn],                                   # last-name substring
         ]
         # First non-empty tier wins; pick only if it's unambiguous (single match).
         candidates = next((c for c in tiers if c), [])

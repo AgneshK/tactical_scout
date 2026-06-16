@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(awk -F',' 'NR==1 || $2 ~ /[Rr]odri/ {print $2 \"  |  \" $4 \"  |  \" $5 \"  |  Min=\" $11}' \"C:\\\\Users\\\\Agnesh Kundu\\\\tactical_scout\\\\data\\\\players_data-2024_2025.csv\")"
+      "Bash(awk -F',' 'NR==1 || $2 ~ /[Rr]odri/ {print $2 \"  |  \" $4 \"  |  \" $5 \"  |  Min=\" $11}' \"C:\\\\Users\\\\Agnesh Kundu\\\\tactical_scout\\\\data\\\\players_data-2024_2025.csv\")",
+      "Bash(ls backend/artifacts/)",
+      "Bash(ls data/)",
+      "Bash(python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python _accent_test.py)",
+      "Bash(python -m py_compile backend/agent.py backend/main.py)",
+      "Bash(node --check frontend/script.js)",
+      "Bash(python -c \"import dotenv,os; dotenv.load_dotenv\\(\\); print\\('GROQ key set:', bool\\(os.getenv\\('GROQ_API_KEY'\\)\\)\\)\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8011/chat -H \"Content-Type: application/json\" -d '{\"message\":\"Find players similar to Odegaard\"}')",
+      "Bash(curl -s --max-time 90 -X POST http://127.0.0.1:8011/chat -H \"Content-Type: application/json\" -d '{\"message\":\"Find players similar to Odegaard\"}' -o ts_chat.json -w \"HTTP %{http_code} in %{time_total}s\\\\n\")",
+      "Bash(rm -f ts_chat.json)"
     ]
   }
 }

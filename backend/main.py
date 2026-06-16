@@ -23,6 +23,19 @@ class ChatRequest(BaseModel):
     message: str
 
 
+@app.get("/health")
+async def health():
+    """Lightweight readiness probe — lets the frontend wake a cold instance and detect
+    when the model artifacts are loaded, without paying for a full agent turn."""
+    from agent import _name_to_idx
+    ready = _name_to_idx is not None
+    return {
+        "status": "ok" if ready else "degraded",
+        "artifacts_loaded": ready,
+        "players_indexed": len(_name_to_idx) if ready else 0,
+    }
+
+
 def _extract_similarity_payload(messages) -> dict | None:
     """Find the most recent get_similar_players ToolMessage and parse its JSON payload."""
     for msg in reversed(messages):

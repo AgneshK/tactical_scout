@@ -36,9 +36,9 @@
             </div>
 
             <div class="header-right">
-                <div class="header-status">
-                    <span class="status-dot"></span>
-                    <span class="status-label">Live</span>
+                <div class="header-status" id="header-status" title="Backend connection status">
+                    <span class="status-dot is-connecting" id="status-dot"></span>
+                    <span class="status-label" id="status-label">Connecting</span>
                 </div>
                 <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
                     <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -59,6 +59,26 @@
             </div>
         </header>
 
+        <div id="cold-banner" class="cold-banner" hidden>
+            <span class="cold-icon">
+                <svg class="cold-spinner" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                </svg>
+                <svg class="cold-check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </span>
+            <div class="cold-text">
+                <strong class="cold-title" id="cold-title">Waking the scout…</strong>
+                <span class="cold-desc" id="cold-desc">This demo runs on a free tier that spins down when idle, so the first request can take up to a minute. Subsequent answers are fast.</span>
+            </div>
+            <button class="cold-dismiss" id="cold-dismiss" aria-label="Dismiss notice">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+
         <div id="chat-window" class="chat-window is-empty">
             <div class="empty-state" id="empty-state">
                 <div class="empty-icon">
@@ -73,6 +93,36 @@
                 </div>
                 <h2 class="empty-heading">Your AI football scout.</h2>
                 <p class="empty-sub">Ask about any outfield player from the 2024/25 season.<br>Get instant tactical clones with live availability intel.</p>
+
+                <div class="how-it-works" aria-label="How it works">
+                    <div class="how-step">
+                        <span class="how-num">1</span>
+                        <div class="how-text"><strong>Embed</strong><span>Each player → an 8-dim style vector</span></div>
+                    </div>
+                    <span class="how-arrow">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </span>
+                    <div class="how-step">
+                        <span class="how-num">2</span>
+                        <div class="how-text"><strong>Compare</strong><span>Cosine similarity, same position</span></div>
+                    </div>
+                    <span class="how-arrow">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </span>
+                    <div class="how-step">
+                        <span class="how-num">3</span>
+                        <div class="how-text"><strong>Scout</strong><span>Live availability via news search</span></div>
+                    </div>
+                </div>
+
+                <div class="featured">
+                    <span class="featured-label">Try</span>
+                    <button class="featured-chip" data-query="Find players similar to Bukayo Saka">Bukayo Saka</button>
+                    <button class="featured-chip" data-query="Find players similar to Jude Bellingham">Jude Bellingham</button>
+                    <button class="featured-chip" data-query="Find players similar to Florian Wirtz">Florian Wirtz</button>
+                    <button class="featured-chip" data-query="Find players similar to Lautaro Martínez">Lautaro Martínez</button>
+                </div>
+
                 <div class="empty-tags">
                     <span class="empty-tag">PyTorch · Autoencoder</span>
                     <span class="empty-tag">LangGraph · ReAct</span>

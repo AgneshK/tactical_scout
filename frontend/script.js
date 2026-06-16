@@ -1,3 +1,5 @@
+const BACKEND_URL = "https://tactical-scout.onrender.com"; // local: http://127.0.0.1:8000
+
 const chatWindow = document.getElementById("chat-window");
 const userInput = document.getElementById("user-input");
 const sendBtn = document.getElementById("send-btn");
@@ -11,6 +13,102 @@ let _msgSeq = 0;
 let started = false;
 
 const nextMsgId = () => "msg-" + ++_msgSeq;
+
+/* ── Backend status & cold-start handling ───────────────────────────
+   This demo is hosted on a free tier that spins the server down when
+   idle. The first request after a sleep can take ~30–60s while the
+   instance boots, so we probe /health on load, surface a clear "waking
+   up" notice, and reflect the real connection state in the header. */
+
+let backendReady = false;
+
+const statusDot = document.getElementById("status-dot");
+const statusLabel = document.getElementById("status-label");
+const coldBanner = document.getElementById("cold-banner");
+const coldTitle = document.getElementById("cold-title");
+const coldDesc = document.getElementById("cold-desc");
+const coldDismiss = document.getElementById("cold-dismiss");
+
+const STATUS_TEXT = {
+  connecting: "Connecting",
+  live: "Live",
+  waking: "Waking up",
+  offline: "Offline",
+};
+
+function setStatus(state) {
+  if (!statusDot) return;
+  statusDot.className = "status-dot is-" + state;
+  statusLabel.textContent = STATUS_TEXT[state] || state;
+}
+
+let bannerDismissed = false;
+
+function showColdBanner({ offline = false } = {}) {
+  if (bannerDismissed || !coldBanner) return;
+  coldBanner.classList.remove("is-ready");
+  coldBanner.classList.toggle("is-offline", offline);
+  if (offline) {
+    coldTitle.textContent = "Server unreachable";
+    coldDesc.textContent =
+      "The backend isn't responding yet — it may still be starting. You can send a message to retry; the first one can take up to a minute.";
+  } else {
+    coldTitle.textContent = "Waking the scout…";
+    coldDesc.textContent =
+      "This demo runs on a free tier that spins down when idle, so the first request can take up to a minute. Subsequent answers are fast.";
+  }
+  coldBanner.hidden = false;
+}
+
+function markBannerReady() {
+  if (!coldBanner || coldBanner.hidden || bannerDismissed) return;
+  coldBanner.classList.remove("is-offline");
+  coldBanner.classList.add("is-ready");
+  coldTitle.textContent = "Scout is ready";
+  coldDesc.textContent = "Server is warm — ask about any outfield player.";
+  setTimeout(() => {
+    coldBanner.hidden = true;
+  }, 2600);
+}
+
+function hideColdBanner() {
+  if (coldBanner) coldBanner.hidden = true;
+}
+
+coldDismiss?.addEventListener("click", () => {
+  bannerDismissed = true;
+  hideColdBanner();
+});
+
+async function probeBackend() {
+  setStatus("connecting");
+  // If /health hasn't answered shortly, the instance is almost certainly cold —
+  // surface the waking notice while the boot completes in the background.
+  const coldTimer = setTimeout(() => {
+    if (!backendReady) {
+      setStatus("waking");
+      showColdBanner();
+    }
+  }, 2500);
+
+  try {
+    const res = await fetch(BACKEND_URL + "/health", { method: "GET" });
+    clearTimeout(coldTimer);
+    if (res.ok) {
+      backendReady = true;
+      setStatus("live");
+      markBannerReady();
+    } else {
+      setStatus("offline");
+      showColdBanner({ offline: true });
+    }
+  } catch (err) {
+    clearTimeout(coldTimer);
+    console.warn("Health probe failed:", err);
+    setStatus("offline");
+    showColdBanner({ offline: true });
+  }
+}
 
 function hideWelcome() {
   if (started) return;
@@ -28,10 +126,19 @@ async function sendMessage() {
   appendMessage(text, "user-msg");
   userInput.value = "";
 
-  const loadingId = appendTypingIndicator();
+  // When the backend hasn't confirmed readiness, the first call may hit a cold
+  // instance — tell the user the wait is expected rather than leaving a silent spinner.
+  const cold = !backendReady;
+  const loadingId = appendTypingIndicator(
+    cold ? "Waking the server… the first request can take up to a minute." : "",
+  );
+  if (cold) {
+    setStatus("waking");
+    showColdBanner();
+  }
 
   try {
-    const response = await fetch("https://tactical-scout.onrender.com/chat", { //   - live backend URL http://127.0.0.1:8000
+    const response = await fetch(BACKEND_URL + "/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
@@ -45,6 +152,11 @@ async function sendMessage() {
     const data = await response.json();
     document.getElementById(loadingId)?.remove();
 
+    // A successful reply proves the instance is warm.
+    backendReady = true;
+    setStatus("live");
+    markBannerReady();
+
     // Render player cards if they exist in the response
     if (data.players && Array.isArray(data.players.clones)) {
       appendCards(data.players);
@@ -56,10 +168,12 @@ async function sendMessage() {
   } catch (err) {
     console.error("sendMessage failed:", err);
     document.getElementById(loadingId)?.remove();
+    setStatus("offline");
+    showColdBanner({ offline: true });
 
     // Provide a hardcoded string so marked.parse doesn't receive 'undefined'
     const errorMsg =
-      "Unable to reach the backend. The server may be starting up or encountered an internal error — please try again in a moment.";
+      "**Unable to reach the backend.** The free-tier server may still be starting up — wait a few seconds and try again. If it persists, the instance may be down.";
     appendMessage(errorMsg, "bot-msg");
   }
 }
@@ -81,11 +195,13 @@ function appendMessage(text, className) {
   return div.id;
 }
 
-function appendTypingIndicator() {
+function appendTypingIndicator(note = "") {
   const div = document.createElement("div");
-  div.className = "message bot-msg typing-indicator";
+  div.className = "message bot-msg typing-indicator" + (note ? " has-note" : "");
   div.id = nextMsgId();
-  div.innerHTML = "<span></span><span></span><span></span>";
+  div.innerHTML =
+    `<span class="dots"><span></span><span></span><span></span></span>` +
+    (note ? `<span class="typing-note">${escapeHtml(note)}</span>` : "");
   chatWindow.appendChild(div);
   chatWindow.scrollTop = chatWindow.scrollHeight;
   return div.id;
@@ -101,14 +217,146 @@ function appendCards(payload) {
   block.id = nextMsgId();
 
   const top = payload.clones[0];
+  const query = payload.query;
+
+  // 1. Engine telemetry — players scanned, candidates, latency, role/league.
+  block.insertAdjacentHTML("beforeend", buildTelemetry(payload));
+
+  // 2. Reference player (the queried player) as its own card.
+  if (query) {
+    block.insertAdjacentHTML("beforeend", sectionLabel("Reference player"));
+    block.appendChild(buildCard(query, { isQuery: true }));
+  }
+
+  // 3. The headline pick.
+  block.insertAdjacentHTML("beforeend", sectionLabel("Closest tactical clone"));
   block.appendChild(buildCard(top, { isQuery: false, isTopPick: true }));
 
-  if (payload.query && (payload.query.percentiles || top.percentiles)) {
-    block.insertAdjacentHTML("beforeend", buildRadar(payload.query, top));
+  // 4. Per-90 head-to-head (raw values) — a different lens than the radar.
+  if (query && query.stats && top.stats) {
+    block.insertAdjacentHTML("beforeend", buildHeadToHead(query, top));
+  }
+
+  // 5. Percentile radar (shape comparison).
+  if (query && (query.percentiles || top.percentiles)) {
+    block.insertAdjacentHTML("beforeend", buildRadar(query, top));
+  }
+
+  // 6. Runners-up (#2–#5) as compact, scannable rows.
+  const rest = payload.clones.slice(1);
+  if (rest.length) {
+    const runners = document.createElement("div");
+    runners.className = "runners-block";
+    runners.innerHTML =
+      `<div class="runners-title">Other strong matches</div>` +
+      rest.map(buildRunnerRow).join("");
+    block.appendChild(runners);
   }
 
   chatWindow.appendChild(block);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function sectionLabel(text) {
+  return `<div class="section-label">${escapeHtml(text)}</div>`;
+}
+
+/* ── Engine telemetry strip ── */
+
+function buildTelemetry(payload) {
+  const items = [];
+  if (payload.search_time_ms != null)
+    items.push({ val: `${payload.search_time_ms}`, unit: "ms", key: "Search", lead: true });
+  if (payload.db_size != null)
+    items.push({ val: Number(payload.db_size).toLocaleString(), key: "Players scanned" });
+  if (payload.candidate_pool != null)
+    items.push({ val: `${payload.candidate_pool}`, key: "Position-matched" });
+  if (payload.primary_pos)
+    items.push({ val: escapeHtml(payload.primary_pos), key: "Role" });
+  if (payload.league_filter)
+    items.push({ val: escapeHtml(payload.league_filter), key: "League" });
+
+  if (!items.length) return "";
+
+  const cells = items
+    .map(
+      (it) => `
+      <div class="telem-item">
+        <span class="telem-val">${it.lead ? '<span class="telem-spark">⚡</span>' : ""}${it.val}${it.unit ? `<span class="telem-unit">${it.unit}</span>` : ""}</span>
+        <span class="telem-key">${it.key}</span>
+      </div>`,
+    )
+    .join('<span class="telem-sep"></span>');
+
+  return `<div class="telemetry"><span class="telem-eyebrow">Engine</span><div class="telem-grid">${cells}</div></div>`;
+}
+
+/* ── Per-90 head-to-head ── */
+
+function buildHeadToHead(q, c) {
+  const stats = RADAR_STATS.filter(
+    (s) => (q.stats && s in q.stats) || (c.stats && s in c.stats),
+  );
+  if (!stats.length) return "";
+
+  const rows = stats
+    .map((s) => {
+      const qv = Number(q.stats?.[s] ?? 0);
+      const cv = Number(c.stats?.[s] ?? 0);
+      const max = Math.max(qv, cv, 0.0001);
+      const qw = (qv / max) * 100;
+      const cw = (cv / max) * 100;
+      const winCls = cv > qv ? "c-win" : cv < qv ? "q-win" : "tie";
+      return `
+        <div class="h2h-row">
+          <span class="h2h-num h2h-num-q">${qv.toFixed(2)}</span>
+          <span class="h2h-track h2h-track-q"><i style="width:${qw.toFixed(1)}%"></i></span>
+          <span class="h2h-label">${escapeHtml(STAT_LABELS[s] || s)}</span>
+          <span class="h2h-track h2h-track-c"><i style="width:${cw.toFixed(1)}%"></i></span>
+          <span class="h2h-num h2h-num-c ${winCls}">${cv.toFixed(2)}</span>
+        </div>`;
+    })
+    .join("");
+
+  return `
+    <div class="h2h-block">
+      <div class="h2h-header">
+        <div class="runners-title">Per-90 head-to-head</div>
+        <div class="radar-legend">
+          <span class="legend-item"><span class="dot dot-query"></span>${escapeHtml(q.name)}</span>
+          <span class="legend-item"><span class="dot dot-clone"></span>${escapeHtml(c.name)}</span>
+        </div>
+      </div>
+      <div class="h2h-rows">${rows}</div>
+    </div>`;
+}
+
+function buildRunnerRow(p) {
+  const hue = avatarHue(p.name);
+  const ini = initials(p.name);
+  const flag = p.nation?.flag_url
+    ? `<img class="flag" src="${escapeHtml(p.nation.flag_url)}" alt="${escapeHtml(p.nation.label)}" loading="lazy">`
+    : "";
+  const metaBits = [];
+  if (p.club) metaBits.push(escapeHtml(p.club));
+  if (p.league) metaBits.push(escapeHtml(p.league));
+  if (p.age != null) metaBits.push(`Age ${p.age}`);
+
+  const pct = p.similarity != null ? `${(p.similarity * 100).toFixed(1)}%` : "";
+  const pctBadge = pct
+    ? `<span class="runner-pct ${confidenceClass(p.confidence)}">${pct}</span>`
+    : "";
+
+  return `
+    <div class="runner-row">
+      <span class="runner-rank">#${p.rank ?? ""}</span>
+      <span class="avatar avatar-sm" style="background:hsl(${hue} 65% 92%);color:hsl(${hue} 55% 28%)">${escapeHtml(ini)}</span>
+      <span class="runner-id">
+        <span class="runner-name">${flag}${escapeHtml(p.name)}</span>
+        <span class="runner-meta">${escapeHtml(p.position || "")}${metaBits.length ? " · " + metaBits.join(" · ") : ""}</span>
+      </span>
+      ${pctBadge}
+    </div>`;
 }
 
 function escapeHtml(s) {
@@ -199,16 +447,23 @@ function buildCard(p, { isQuery, isTopPick }) {
                </div>`
       : "";
 
+  const pcts = p.percentiles || {};
   const stats =
     p.stats && Object.keys(p.stats).length
       ? `<div class="stat-grid">${Object.entries(p.stats)
-          .map(
-            ([k, v]) => `
+          .map(([k, v]) => {
+            const pc = pcts[k];
+            const bar =
+              pc != null
+                ? `<div class="stat-bar" title="${Number(pc).toFixed(0)}th percentile in role"><span style="width:${Math.max(0, Math.min(100, pc))}%"></span></div>`
+                : "";
+            return `
                 <div class="stat-cell">
                     <div class="stat-key">${escapeHtml(STAT_LABELS[k] || k)}</div>
                     <div class="stat-val">${Number(v).toFixed(2)}</div>
-                </div>`,
-          )
+                    ${bar}
+                </div>`;
+          })
           .join("")}</div>`
       : "";
 
@@ -309,11 +564,19 @@ function buildRadar(query, clone) {
     `;
 }
 
-// Suggestion chips
+// Suggestion chips — prefill the input so the user can tweak before sending.
 document.querySelectorAll(".suggestion-chip").forEach((chip) => {
   chip.addEventListener("click", () => {
     userInput.value = chip.dataset.query;
     userInput.focus();
+  });
+});
+
+// Featured-player chips (empty state) — send immediately for a one-tap demo.
+document.querySelectorAll(".featured-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    userInput.value = chip.dataset.query;
+    sendMessage();
   });
 });
 
@@ -331,3 +594,7 @@ document.getElementById("theme-toggle").addEventListener("click", () => {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("theme", next);
 });
+
+// Probe the backend on load so the cold-start notice appears before the
+// user's first message rather than after a mysterious 60s wait.
+probeBackend();
